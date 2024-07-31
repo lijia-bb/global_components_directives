@@ -1,9 +1,10 @@
 <template>
-  <div v-loading="loading">
+  <div>
     <el-table
       ref="commonTable"
-      :data="data"
+      :data="tableData"
       :height="tableHeight"
+      v-loading="loading"
       border
       :style="{
         width: '100%',
@@ -17,6 +18,7 @@
       :row-key="keyId"
       @select="handleSelectionChange"
       @select-all="handleSelectionChange"
+      @sort-change="sortChange"
     >
       <!-- 单选框 -->
       <el-table-column
@@ -40,11 +42,14 @@
       </el-table-column>
       <!-- 表格 -->
       <el-table-column
-        v-for="item in tableLabel.filter((item) => item.label)"
+        v-for="(item,idx) in tableLabel.filter((item) => item.label)"
         :key="item[keyId]"
         :width="item.width ? item.width : ''"
+        :min-width="item.minWidth ? item.minWidth : ''"
         :align="!!item.align ? item.align : 'center'"
         :label="item.label"
+        :sortable="item.sortable ? item.sortable : false"
+        :sortOrders="item.sortOrders ? item.sortOrders : []"
         :show-overflow-tooltip="overflowText"
         :fixed="item.fixed"
         :prop="item.prop"
@@ -75,13 +80,12 @@
           </template>
 
           <template v-else-if="item.render">
-            <template>
-              <div
+              <!-- <div
                 style="cursor: pointer"
                 @click="!!item.methods && handleClickon(item.methods, row)"
                 v-html="item.render(row)"
-              />
-            </template>
+              /> -->
+              <expand-dom :column="item" :row="row" :render="item.render" :index="idx"></expand-dom>
           </template>
 
           <template v-else>
@@ -92,7 +96,7 @@
               {{
                 Object.prototype.toString.call(item.prop) == "[object Array]"
                   ? propFilter(item.prop, row)
-                  : row[item.prop]
+                  : row[item.prop] || row[item.prop] === 0
                   ? row[item.prop]
                   : "--"
               }}
@@ -100,6 +104,7 @@
           </template>
         </template>
       </el-table-column>
+      <!-- 操作菜单 -->
       <el-table-column
         v-if="!!option"
         :width="option.width"
@@ -211,7 +216,7 @@ export default {
     /**
      * 表格数据源
      */
-    data: {
+    tableData: {
       type: Array,
       default: () => {
         return [];
@@ -279,7 +284,7 @@ export default {
       type: Object,
       default: () => {
         return {
-          height: "32px",
+          height: "28px",
         };
       },
     },
@@ -319,9 +324,9 @@ export default {
     /**
      * 每页条数
      */
-    pagesizes: {
+    pageSizes: {
       tyep: Array,
-      default: [],
+      default: () => [10, 50, 100, 500],
     },
     /**
      * 总条数
@@ -329,6 +334,31 @@ export default {
     tabletotal: {
       tyep: Number,
       default: 0,
+    },
+  },
+   //组件
+  components: {
+    expandDom: {
+      functional: true,
+      props: {
+        row: Object,
+        render: Function,
+        index: Number,
+        column: {
+          type: Object,
+          default: null
+        }
+      },
+      render: (h, ctx) => {
+        debugger
+        const params = {
+          row: ctx.props.row,
+          index: ctx.props.index
+        }
+        debugger
+        if (ctx.props.column) params.column = ctx.props.column
+        return ctx.props.render(h, params)
+      }
     },
   },
   data() {
@@ -339,20 +369,20 @@ export default {
     };
   },
   watch: {
-    data: {
+    tableData: {
       handler() {
         if (this.showCheckBox || this.turnRadio) {
           this.$nextTick(() => {
             this.$refs.commonTable.clearSelection();
             this.curPageCheck = [];
             if (this.showCheckBox && this.turnRadio) {
-              this.data.filter((item) => {
+              this.tableData.filter((item) => {
                 if (item.id === this.selectedIdArr[0]) {
                   this.$refs.commonTable.toggleRowSelection(item, true);
                 }
               });
             } else if (this.showCheckBox) {
-              this.data.filter((item) => {
+              this.tableData.filter((item) => {
                 if (this.selectedIdArr.includes(item.id)) {
                   this.$refs.commonTable.toggleRowSelection(item, true);
                   this.curPageCheck.push(item.id);
@@ -372,13 +402,13 @@ export default {
             this.$refs.commonTable.clearSelection();
             this.curPageCheck = [];
             if (this.showCheckBox && this.turnRadio) {
-              this.data.filter((item) => {
+              this.tableData.filter((item) => {
                 if (item.id === val[0]) {
                   this.$refs.commonTable.toggleRowSelection(item, true);
                 }
               });
             } else if (this.showCheckBox) {
-              this.data.filter((item) => {
+              this.tableData.filter((item) => {
                 if (val.includes(item.id)) {
                   this.$refs.commonTable.toggleRowSelection(item, true);
                   this.curPageCheck.push(item.id);
@@ -465,8 +495,8 @@ export default {
       classList.push(this.rowClassName({ row, rowIndex }));
       return classList.join(" ");
     },
-    cellClassName({ row, column, rowIndex, columnIndex }) {
-      console.log(column, rowIndex);
+    cellClassName({ row, columnIndex }) {
+      //{ row, column, rowIndex, columnIndex }
       if (row.confirmTag === 2 && columnIndex < this.tableLabel.length) {
         return "height_light_cell";
       } else {
@@ -494,14 +524,22 @@ export default {
       this.page.page = val;
       this.$emit("getlist", this.pageObj);
     },
+    // 点击表头
+    handleHeaderCLick(column) {
+      this.$emit("handleHeaderCLick", column);
+    },
+    // 上面缺点是只能通过点击表头切换排序状态，点击小三角排序不会触发，处理sort-change事件和点击表头一样
+    sortChange({ column }) {
+      this.$emit("sortChange", column);
+    },
   },
-};
+}
 </script>
 
 <style lang="scss" scoped>
 .block {
   text-align: center;
-  margin-top: 14px;
+  margin-top: 5px;
 }
 ::v-deep .el-table__header,
 ::v-deep .el-table__body {
@@ -590,6 +628,9 @@ export default {
     //表头字体颜色
     color: #7f7f7f !important;
   }
+  td {
+    padding: 0 !important;
+  }
   td.el-table__cell div,
   th.el-table__cell > .cell {
     //表头字体大小
@@ -604,7 +645,7 @@ export default {
 
   .cell {
     //行高,字体大小
-    // padding: 0 10px;
+    padding: 0 !important;
     // line-height: 39px;
   }
 

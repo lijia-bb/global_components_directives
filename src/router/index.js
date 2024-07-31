@@ -14,15 +14,16 @@ VueRouter.prototype.replace = function replace(to) {
 }
 Vue.use(VueRouter)
 
-const routes = [ {
-  path: '/',
-  redirect: '/index',
-  hidden: true
-},
+const routes = [
+  {
+    path: '/',
+    redirect: '/index',
+    hidden: true
+  },
   {
     path: '/index',
-    component: () => import('@/views/index.vue'),
-  },
+    component: () => import('@/views/index.vue')
+  }
 ]
 const router = new VueRouter({
   routes
